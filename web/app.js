@@ -92,11 +92,17 @@ function refreshVisibility() {
   show('baseplate-fields', interior === 'gridfinity' && kind === 'drawer');
   show('divider-fields', interior === 'dividers'); show('divider-height-row', kind === 'drawer');
   show('depth-divider-field', !caseSM);
+  // CSS-hidden controls still participate in native form validation unless disabled.
+  // Recompute from all ancestor groups so nested hidden options stay disabled.
+  for (const field of $('config-form').querySelectorAll('input, select')) {
+    field.disabled = Boolean(field.closest('.hidden'));
+  }
+  $('latches').min = kind === 'drawer' && $('roof').value === 'under_table' ? '1' : '0';
   const layout = JSON.parse($('drawer-layout').value || '[1]');
   $('drawer-description').textContent = layout.length > 1 ? `${layout.length} 个内抽共用一个外壳；自动加入锁定齿条。` : '一套外壳，一个内抽。';
-  $('rails').disabled = layout.length > 1;
+  $('rails').disabled = kind !== 'drawer' || layout.length > 1;
   if (kind === 'drawer' && $('roof').value !== 'grid') { $('top-handle').checked = false; $('top-handle').disabled = true; }
-  else $('top-handle').disabled = false;
+  else $('top-handle').disabled = kind !== 'drawer';
   $('wheels').disabled = $('base').value === 'none';
   if ($('wheels').disabled) $('wheels').checked = false;
   const h = +$('height').value;

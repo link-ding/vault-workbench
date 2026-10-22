@@ -88,6 +88,13 @@ class Recipe:
                 raise ValidationError("未知的顶盖。")
             self.named(f"{model} {ROOFS[roof]}.stl", kind="drawer", model=model,
                        reason="顶盖只选一种；叠放中间层可不选", source=f"{MANUAL} 第10页", optional=True)
+            if roof == "heavy":
+                self.named("Heawyweight Roof Handle.stl", kind="drawer",
+                           reason="承重顶盖中央握把，整份打印 1 次",
+                           source=f"{MANUAL} 第10页；Universal 专用附件与顶盖结构核对")
+                self.named("Heawyweight Roof Insert.stl", 2, kind="drawer",
+                           reason="承重顶盖握把两端各 1 个插片；文件只有单件",
+                           source="承重顶盖两端安装位与单件 Insert STL 结构核对")
         if cfg.get("top_handle", False):
             if roof != "grid":
                 raise ValidationError("顶部提手仅与网格顶盖一起加入。")
@@ -95,6 +102,8 @@ class Recipe:
                        reason="顶盖提手；开启支撑", source=f"{MANUAL} 第11、18页")
             self.bolt("M6 × 50 mm 螺栓", 2, "顶部提手", f"{MANUAL} 第3、18页")
         latches = integer(cfg.get("latches", 1), "堆叠连接扣数量", minimum=0, maximum=4)
+        if roof == "under_table" and latches < 1:
+            raise ValidationError("桌下安装至少需要 1 个堆叠连接扣，用于锁定外壳与安装顶盖。")
         if latches:
             self.named("Latch.stl", latches, kind="drawer", optional=True,
                        reason="所需堆叠连接扣数量", source=f"{DRAWER} 第8页")

@@ -1,0 +1,120 @@
+[
+  {
+    "config": {
+      "family": "L",
+      "roof": "heavy"
+    },
+    "parts": [
+      {
+        "name": "L3 Module 1F.stl",
+        "copies": 1
+      },
+      {
+        "name": "L3 Box 1F.stl",
+        "copies": 1
+      },
+      {
+        "name": "L1F (Turn On Supports).stl",
+        "copies": 1
+      },
+      {
+        "name": "Key (Turn On Supports).stl",
+        "copies": 1
+      },
+      {
+        "name": "Key Cap.stl",
+        "copies": 1
+      },
+      {
+        "name": "Springs.stl",
+        "copies": 1
+      },
+      {
+        "name": "Facade Cap.stl",
+        "copies": 2
+      },
+      {
+        "name": "x3 Runner Slides.stl",
+        "copies": 1
+      },
+      {
+        "name": "x3 Runner Guides.stl",
+        "copies": 1
+      },
+      {
+        "name": "Runner Stopper.stl",
+        "copies": 2
+      },
+      {
+        "name": "Label.stl",
+        "copies": 1
+      },
+      {
+        "name": "L3 Heawyweight Roof.stl",
+        "copies": 1
+      },
+      {
+        "name": "Latch.stl",
+        "copies": 1
+      }
+    ],
+    "notes": []
+  },
+  {
+    "config": {
+      "roof": "under_table",
+      "latches": 0
+    },
+    "parts": [
+      {
+        "name": "S3 Module 1F.stl",
+        "copies": 1
+      },
+      {
+        "name": "S3 Box 1F.stl",
+        "copies": 1
+      },
+      {
+        "name": "S1F (Turn On Supports).stl",
+        "copies": 1
+      },
+      {
+        "name": "Key (Turn On Supports).stl",
+        "copies": 1
+      },
+      {
+        "name": "Key Cap.stl",
+        "copies": 1
+      },
+      {
+        "name": "Springs.stl",
+        "copies": 1
+      },
+      {
+        "name": "Facade Cap.stl",
+        "copies": 2
+      },
+      {
+        "name": "x3 Runner Slides.stl",
+        "copies": 1
+      },
+      {
+        "name": "x3 Runner Guides.stl",
+        "copies": 1
+      },
+      {
+        "name": "Runner Stopper.stl",
+        "copies": 2
+      },
+      {
+        "name": "Label.stl",
+        "copies": 1
+      },
+      {
+        "name": "S3 Under Table Mount Roof.stl",
+        "copies": 1
+      }
+    ],
+    "notes": []
+  }
+]

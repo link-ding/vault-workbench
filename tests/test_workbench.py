@@ -115,6 +115,33 @@ class AssemblyContracts(unittest.TestCase):
         self.assertEqual(once["copies"] * 2, twice["copies"])
         self.assertEqual(once["bytes"], twice["bytes"])
 
+    def test_heavy_roof_includes_grip_and_both_single_piece_inserts(self):
+        for depth in range(3, 8):
+            with self.subTest(depth=depth):
+                result = plan(self.catalog, {"configs": [{"family": "L", "depth": depth,
+                                                          "roof": "heavy", "quantity": 2}]})
+                counts = {p["name"]: p["copies"] for p in result["parts"]}
+                self.assertEqual(counts[f"L{depth} Heawyweight Roof.stl"], 2)
+                self.assertEqual(counts["Heawyweight Roof Handle.stl"], 2)
+                self.assertEqual(counts["Heawyweight Roof Insert.stl"], 4)
+                self.assertNotIn("Top Handle (Turn On Supports).stl", counts)
+        ordinary = plan(self.catalog, {"configs": [{"family": "L", "roof": "grid"}]})
+        self.assertFalse(any("Heawyweight" in p["name"] for p in ordinary["parts"]))
+
+    def test_under_table_mount_requires_locking_latch(self):
+        cfg = {"roof": "under_table", "latches": 0}
+        with self.assertRaisesRegex(ValidationError, "至少需要 1 个堆叠连接扣"):
+            plan(self.catalog, {"configs": [cfg]})
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(ValidationError):
+                ExportManager(tmp).start(self.catalog, {"configs": [cfg]})
+        result = plan(self.catalog, {"configs": [{"roof": "under_table", "latches": 1, "quantity": 2}]})
+        counts = {p["name"]: p["copies"] for p in result["parts"]}
+        self.assertEqual(counts["Latch.stl"], 2)
+        self.assertEqual(counts["S3 Under Table Mount Roof.stl"], 2)
+        free = plan(self.catalog, {"configs": [{"latches": 0}]})
+        self.assertNotIn("Latch.stl", [p["name"] for p in free["parts"]])
+
 
 class ExportContracts(unittest.TestCase):
     def test_zip_round_trip_integrity_and_unmodified_source(self):

@@ -1,0 +1,37 @@
+{
+  "unit_tests": 17,
+  "api_heavy_roof": {
+    "L3 Module 1F.stl": 1,
+    "L3 Box 1F.stl": 1,
+    "L1F (Turn On Supports).stl": 1,
+    "Key (Turn On Supports).stl": 1,
+    "Key Cap.stl": 1,
+    "Springs.stl": 1,
+    "Facade Cap.stl": 2,
+    "x3 Runner Slides.stl": 1,
+    "x3 Runner Guides.stl": 1,
+    "Runner Stopper.stl": 2,
+    "Label.stl": 1,
+    "L3 Heawyweight Roof.stl": 1,
+    "Heawyweight Roof Handle.stl": 1,
+    "Heawyweight Roof Insert.stl": 2,
+    "Latch.stl": 1
+  },
+  "under_table_missing_latch": "HTTP 400",
+  "heavy_zip": {
+    "files": 15,
+    "copies": 18,
+    "bytes": 57503050,
+    "crc": "passed",
+    "all_sha256": "matched original source"
+  },
+  "browser": {
+    "hidden_invalid_quantity_then_none": "added successfully, queue count 0 -> 1",
+    "hidden_quantity_state": "disabled=true, willValidate=false",
+    "reopened_quantity_state": "disabled=false, willValidate=true, invalid=21",
+    "nested_sm_depth_quantity": "disabled=true, willValidate=false",
+    "under_table_latches_zero": "min=1; add disabled; Chinese dependency error visible",
+    "heavy_roof": "15 files, 18 entire-file copies; Handle x1, Insert x2 visible",
+    "test_plan_cleanup": "only test entry removed; queue restored to 0"
+  }
+}
