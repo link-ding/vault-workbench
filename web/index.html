@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="VAULT 本地中文打印工作台：选择收纳需求，整理 STL 与打印清单。">
+  <title>VAULT · 中文打印工作台</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23ef672f'/%3E%3Cpath d='M15 17l17 32 17-32H38l-6 13-6-13z' fill='white'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="#configure" aria-label="VAULT 工作台首页">VAULT<span class="brand-dot">®</span></a>
+    <div class="brand-sub">你的模块化打印工作台</div>
+    <div class="nav-label">WORKSPACE / 工作空间</div>
+    <nav aria-label="主导航">
+      <button class="nav-item active" data-view="configure"><span class="nav-icon">◫</span> 配置打印 <span class="nav-arrow">↗</span></button>
+      <button class="nav-item" data-view="library"><span class="nav-icon">▦</span> 模型库 <span id="nav-file-count" class="nav-count">—</span></button>
+      <button class="nav-item" data-view="manuals"><span class="nav-icon">▤</span> 中文装配指引</button>
+      <button class="nav-item" data-view="history"><span class="nav-icon">◷</span> 导出记录</button>
+    </nav>
+    <div class="sidebar-note"><span class="tiny-square"></span><p>按需打印。<br>为你的工作，留出空间。</p><span class="note-index">01 — MAKE IT YOURS</span></div>
+    <button class="library-status" id="source-button"><span class="status-dot"></span><span><strong>本地模型库</strong><small id="sidebar-source">正在连接…</small></span><span>⚙</span></button>
+    <div class="sidebar-footer">USSA DESIGN FILES · LOCAL WORKBENCH</div>
+  </aside>
+  <div class="app-shell">
+    <header class="topbar"><div><span class="breadcrumb">工作空间</span><span class="slash">/</span><span id="page-name">配置打印</span></div><div class="top-actions"><span class="local-badge"><i></i> 本机运行</span><button class="text-button" id="plan-button">打印计划 <span class="count-badge" id="plan-count">0</span></button></div></header>
+    <main>
+      <section id="configure-view" class="view">
+        <div class="page-heading"><div><div class="eyebrow">BUILD SOMETHING THAT FITS.</div><h1>选好收纳，<span>其余交给工作台。</span></h1><p>从一个盒子开始。选尺寸、配零件，把需要的打印文件一次带走。</p></div><button class="outline-button small" id="quick-guide">初次使用指南 <span>↗</span></button></div>
+        <div class="summary-strip"><div><span class="strip-icon">▦</span><strong id="total-files">—</strong><span>个本地模型</span></div><span class="strip-divider"></span><div><span class="status-dot"></span><span id="source-summary">正在读取文件库</span></div><button class="text-button" id="rescan-button">重新扫描 <span>↻</span></button></div>
+        <div class="workspace-grid">
+          <section class="config-panel panel"><div class="panel-heading"><span class="step-tag">01</span><h2>定义你的模块</h2><span class="muted">CONFIGURE</span></div>
+            <form id="config-form">
+              <label class="field-label">开启方式</label>
+              <div class="type-switch"><button type="button" data-kind="drawer" class="type-card selected"><span class="type-icon">▱</span><span><strong>抽屉式</strong><small>向前拉开 · Drawers</small></span><i></i></button><button type="button" data-kind="sustainer" class="type-card"><span class="type-icon">▰</span><span><strong>翻盖式</strong><small>向上开启 · Sustainers</small></span><i></i></button></div>
+              <div class="field-head"><label class="field-label" for="family">宽度系列</label><span class="field-hint">按官方型号选择</span></div>
+              <div class="choice-row" id="family-choices" role="group" aria-label="宽度系列"></div>
+              <div class="two-fields"><div><label class="field-label" for="depth">深度编号</label><select id="depth" name="depth" aria-label="深度编号"></select></div><div><label class="field-label" for="height">外壳高度</label><select id="height" name="height" aria-label="外壳高度"></select></div></div>
+              <div id="special-warning" class="notice warning hidden"></div>
+              <div id="drawer-fields"><label class="field-label" for="drawer-layout">内抽组合</label><select id="drawer-layout" aria-label="内抽组合"></select><p class="field-description" id="drawer-description">一套外壳，一个内抽。</p>
+                <div class="two-fields"><div><label class="field-label" for="roof">顶盖</label><select id="roof" aria-label="顶盖"></select></div><div><label class="field-label" for="key">锁定旋钮</label><select id="key" aria-label="锁定旋钮"><option value="standard">标准旋钮</option><option value="hidden">隐藏式旋钮</option></select></div></div>
+              </div>
+              <div id="sustainer-fields" class="hidden"><label class="field-label" for="variant">箱体内部版本</label><select id="variant" aria-label="箱体内部版本"></select><label class="checkbox-row" id="split-roof-row"><input type="checkbox" id="split-roof"><span>使用分体顶盖<small>自动加入两半顶盖与连接件</small></span></label></div>
+              <label class="field-label" for="interior">内部收纳</label><select id="interior" aria-label="内部收纳"><option value="none">留空 · 自由放置</option><option value="gridfinity">Gridfinity 网格底板</option><option value="dividers">可拆分隔片</option></select>
+              <div id="baseplate-fields" class="hidden"><label class="field-label" for="baseplate">底板样式</label><select id="baseplate" aria-label="底板样式"></select></div>
+              <div id="divider-fields" class="hidden"><div id="divider-height-row"><label class="field-label" for="divider-height">分隔条高度</label><select id="divider-height" aria-label="分隔条高度"><option value="20">20 mm · 浅分隔</option><option value="34.5">34.5 mm · 1F 满高</option><option value="82.5">82.5 mm · 2F 满高</option></select></div><div class="two-fields"><div><label class="field-label" for="width-dividers">横向份数</label><input id="width-dividers" type="number" min="0" max="20" value="1"></div><div id="depth-divider-field"><label class="field-label" for="depth-dividers">纵向份数</label><input id="depth-dividers" type="number" min="0" max="20" value="1"></div></div></div>
+              <details class="extra-options"><summary>提手、堆叠与安装配件 <span>＋</span></summary><label class="checkbox-row"><input type="checkbox" id="labels" checked><span>加入标签片<small>可以在切片器里添加自己的文字</small></span></label><div id="drawer-extras"><label class="checkbox-row"><input type="checkbox" id="top-handle"><span>顶部提手<small>搭配网格顶盖，需额外五金</small></span></label><label class="checkbox-row"><input type="checkbox" id="rails"><span>加强锁定齿条<small>多内抽配置自动加入</small></span></label><div class="two-fields"><div><label class="field-label" for="latches">堆叠连接扣</label><input id="latches" type="number" min="0" max="4" value="1"></div><div><label class="field-label" for="mount">安装方式</label><select id="mount"><option value="none">自由放置</option><option value="wall">墙挂</option></select></div></div></div><label class="field-label" for="base">底座</label><select id="base"><option value="none">不加底座</option><option value="whole">完整底座</option><option value="split">分体底座</option></select><label class="checkbox-row"><input type="checkbox" id="wheels"><span>加入双轮及底脚<small>需要底座；轮胎使用 TPU，背梁另行选择</small></span></label></details>
+              <div class="config-bottom"><div><label for="quantity">打印套数</label><div class="quantity-control"><button type="button" id="quantity-minus" aria-label="减少套数">−</button><input id="quantity" type="number" min="1" max="100" value="1" aria-label="打印套数"><button type="button" id="quantity-plus" aria-label="增加套数">＋</button></div></div><button type="submit" class="primary-button" id="add-plan">加入打印计划 <span>＋</span></button></div>
+            </form>
+          </section>
+          <div class="preview-column"><section class="product-panel panel"><div class="product-topline"><span class="eyebrow">YOUR NEXT BUILD</span><span class="pill" id="model-pill">S3 · 1F</span></div><div class="product-title"><h2 id="product-name">桌面小物，各得其所。</h2><p id="product-subtitle">S 系列抽屉 · 3 格深度 · 1F 高度</p></div><div class="product-visual"><div class="technical-cross cross-a">＋</div><div class="technical-cross cross-b">＋</div><img id="product-image" src="/assets/drawer.jpg" alt="VAULT 抽屉官方装配示意"><div class="visual-label"><span class="orange-line"></span> USSA 官方示意 · 非当前配置的精确渲染</div></div><div class="product-bottom"><span>模块化设计。只打印你需要的。</span><button class="text-button" id="parts-guide">查看零件图 <span>↗</span></button></div></section>
+          <section class="bill-panel panel"><div class="panel-heading"><span class="step-tag">02</span><h2>本次所需零件</h2><span class="mini-pill" id="preview-count">核对中</span></div><div id="preview-loading" class="loading-line">正在匹配零件…</div><div id="preview-error" class="notice warning hidden" role="alert"></div><div id="preview-summary"></div><div id="preview-parts" class="parts-list"></div><div id="preview-notes"></div><div class="bill-footer"><span>数量表示整份 STL 的打印次数</span><button class="text-button" id="show-hardware">五金清单 ↗</button></div></section></div>
+        </div>
+        <div class="bottom-caption"><span>为实际需求配置，而不是在文件夹中寻找。</span><span>VAULT / PRINT WHAT YOU NEED</span></div>
+      </section>
+      <section id="library-view" class="view hidden"><div class="page-heading"><div><div class="eyebrow">THE WHOLE COLLECTION</div><h1>模型库<span> / 按需补打</span></h1><p>搜索型号、英文零件名或中文用途。每次选择按整份 STL 计数。</p></div></div><div class="library-toolbar"><input id="library-search" type="search" placeholder="搜索，例如：S3、滑轨、铰链、TPU…" aria-label="搜索模型"><select id="library-kind" aria-label="模型分类"><option value="">全部分类</option><option value="drawer">抽屉</option><option value="sustainer">翻盖箱</option><option value="mod">改装配件</option></select><span id="library-count"></span></div><div class="notice">补打模式只导出你选中的文件，不自动补齐装配依赖。双列外壳与尚未核实的配件可在这里查找。</div><div class="panel library-table-wrap"><table class="library-table"><thead><tr><th>零件 / 原始文件名</th><th>分类</th><th>文件大小</th><th>操作</th></tr></thead><tbody id="library-body"></tbody></table><div id="library-more"></div></div></section>
+      <section id="manuals-view" class="view hidden"><div class="page-heading"><div><div class="eyebrow">UNDERSTAND BEFORE YOU PRINT</div><h1>装配有依据，<span>选择有把握。</span></h1><p>中文要点帮助你理解流程，装配细节可随时对照原版图示。</p></div></div><div class="manual-grid" id="manual-grid"></div><section class="panel rule-notes"><h2>开始前，先记住这几件事</h2><div class="rules-grid"><div><span>01</span><h3>文件份数 ≠ 零件个数</h3><p>一份弹簧或滑轨 STL 通常已含一对；一份翻盖锁销包含整套四根。按打印清单的份数导入。</p></div><div><span>02</span><h3>顶盖与外壳分开选</h3><p>抽屉叠放的中间层可以不加顶盖。翻盖箱的完整顶盖与分体顶盖互斥，分体需要连接件。</p></div><div><span>03</span><h3>看尺寸，也看打印空间</h3><p>模型预览显示 STL 坐标轴尺寸。导入切片器后仍需检查朝向、支撑和打印机可用空间。</p></div><div><span>04</span><h3>五金按实际孔位确认</h3><p>官方总表与细分图存在差异。工作台标出依据及参考项，请用实际模型和装配图核对。</p></div></div></section></section>
+      <section id="history-view" class="view hidden"><div class="page-heading"><div><div class="eyebrow">READY WHEN YOU ARE</div><h1>每次打印，<span>都有记录。</span></h1><p>ZIP、中文清单与原文件校验记录保存在本机。</p></div><button class="outline-button" id="open-output">打开导出文件夹 ↗</button></div><div id="export-progress"></div><div id="history-list"></div></section>
+    </main><footer class="app-footer"><span>VAULT 中文打印工作台</span><span>基于你的本地 USSA 文件库 · 非 USSA 官方软件</span><span>V1.0 / OFFLINE READY</span></footer>
+  </div>
+  <div id="toast" role="status" class="toast hidden"></div>
+  <dialog id="plan-dialog" class="plan-dialog"><div class="dialog-heading"><div><span class="eyebrow">PRINT QUEUE</span><h2>你的打印计划</h2></div><button class="icon-button close-dialog" aria-label="关闭">×</button></div><div id="plan-items"></div><div id="plan-summary"></div><div id="plan-errors" class="notice warning hidden"></div><div id="plan-parts"></div><div class="dialog-bottom"><button class="text-button" id="clear-plan">清空计划</button><button class="primary-button" id="export-button">整理并打包 ZIP <span>↗</span></button></div></dialog>
+  <dialog id="source-dialog"><div class="dialog-heading"><h2>连接本地模型库</h2><button class="icon-button close-dialog" aria-label="关闭">×</button></div><p class="muted">请选择包含 01. DRAWERS、02. SUSTAINERS 等目录的根文件夹。</p><label class="field-label" for="source-path">模型库完整路径</label><input id="source-path" type="text" spellcheck="false"><p class="field-description">重新扫描会更新索引，已有打印计划会按新文件库重新检查。</p><div id="source-error" class="notice warning hidden"></div><button class="primary-button" id="save-source">扫描并连接 ↗</button></dialog>
+  <dialog id="info-dialog" class="info-dialog"><div class="dialog-heading"><h2 id="info-title"></h2><button class="icon-button close-dialog" aria-label="关闭">×</button></div><div id="info-content"></div></dialog>
+  <dialog id="mesh-dialog" class="mesh-dialog"><div class="dialog-heading"><div><span class="eyebrow">STL INSPECTOR</span><h2 id="mesh-title">模型预览</h2></div><button class="icon-button close-dialog" aria-label="关闭">×</button></div><div class="mesh-stage"><canvas id="mesh-canvas" aria-label="可拖动旋转的 STL 模型预览"></canvas><div id="mesh-status">读取模型…</div></div><div id="mesh-details"></div><p class="field-description">拖动旋转，滚轮缩放。为保持流畅，预览使用抽样三角面；导出的 STL 保持完整。</p></dialog>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
