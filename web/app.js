@@ -1,4 +1,5 @@
 import { MeshViewer } from '/viewer.js';
+import { AssemblyViewer, caseLayout, drawerLayout } from '/assembly.js';
 
 const $ = id => document.getElementById(id);
 const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -13,7 +14,10 @@ try {
   if (saved && Array.isArray(saved.configs) && Array.isArray(saved.manual)) queue = saved;
 } catch { /* Start with an empty plan if browser storage was cleared or corrupted. */ }
 const viewer = new MeshViewer($('mesh-canvas'));
-let meshSequence = 0;
+let meshAbort = null, meshFile = null;
+const assembly = new AssemblyViewer($('assembly-canvas'), $('assembly-canvas').parentElement);
+let assemblyData = null, assemblyAbort = null, assemblyShown = '', visualMode = '3d';
+let assemblyNumbers = new Map(), hoveredPart = null, hoverFrame = 0, canvasPress = null;
 
 async function api(path, payload) {
   const response = await fetch(path, payload === undefined ? {} : {
@@ -35,7 +39,6 @@ function saveQueue() {
 function view(name) {
   for (const item of document.querySelectorAll('.view')) item.classList.toggle('hidden', item.id !== name + '-view');
   for (const item of document.querySelectorAll('.nav-item')) item.classList.toggle('active', item.dataset.view === name);
-  $('page-name').textContent = { configure: '配置打印', library: '模型库', manuals: '中文装配指引', history: '导出记录' }[name];
   history.replaceState(null, '', '#' + name);
   if (name === 'library') renderLibrary();
   if (name === 'history') loadHistory();
@@ -47,6 +50,24 @@ function fillSelect(id, options, preferred) {
     const option = document.createElement('option'); option.value = value; option.textContent = label; return option;
   }));
   if (options.some(x => String(x[0]) === String(old))) select.value = old;
+  if (select.classList.contains('chip-source')) renderChips(id);
+}
+// Depth and height are picked with chip buttons that mirror their (hidden) select.
+function renderChips(id) {
+  const select = $(id);
+  document.querySelector(`[data-chips-for="${id}"]`).replaceChildren(...[...select.options].map(option => {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'choice-button';
+    button.textContent = id === 'height' ? `${option.value}F` : option.value;
+    button.title = option.textContent;
+    const selected = option.value === select.value;
+    button.classList.toggle('selected', selected); button.setAttribute('aria-pressed', String(selected));
+    button.addEventListener('click', () => {
+      if (select.value === option.value) return;
+      select.value = option.value; select.dispatchEvent(new Event('change', { bubbles: true })); renderChips(id);
+    });
+    return button;
+  }));
 }
 function modelsForKind() { return (catalog?.models || []).filter(m => m.kind === kind); }
 function currentModel() { return modelsForKind().find(m => m.family === family && m.depth === +$('depth').value); }
@@ -69,18 +90,17 @@ function refreshChoices() {
 function refreshOptions() {
   const m = currentModel(); if (!m) return;
   const height = +$('height').value, depth = +$('depth').value, files = modelFiles();
-  const verified = m.verified && !(kind === 'drawer' && family === 'XL');
-  show('special-warning', !verified);
-  $('special-warning').textContent = family.includes('²') ? '双列外壳的配套规则待核对，可在模型库选择文件补打。' : 'XL 抽屉的双锁与后板配方待核对，可在模型库选择文件补打。';
+  show('special-warning', !m.verified);
+  $('special-warning').textContent = '双列外壳的配套规则待核对，可在模型库选择文件补打。';
   show('drawer-fields', kind === 'drawer'); show('drawer-extras', kind === 'drawer'); show('sustainer-fields', kind === 'sustainer');
   const layouts = height === 1 ? [[1]] : height === 2 ? [[2], [1, 1]] : [[4], [2, 2], [2, 1, 1], [1, 2, 1], [1, 1, 2], [1, 1, 1, 1]];
   fillSelect('drawer-layout', layouts.map(layout => [JSON.stringify(layout), layout.length === 1 ? `单内抽 · ${layout[0]}F` : `${layout.length} 个内抽 · ${layout.map(x => x + 'F').join(' + ')}`]));
-  const roofTypes = [['none', '不加顶盖 · 用于中间层'], ['grid', 'Gridfinity 网格顶盖', 'Grid Roof'], ['table', '平面顶盖', 'Table Roof'], ['bowl', '托盘顶盖', 'Bowl Roof'], ['under_table', '桌下安装顶盖', 'Under Table Mount Roof'], ['heavy', '承重顶盖', 'Heawyweight Roof']];
+  const roofTypes = [['none', '不加顶盖'], ['grid', 'Gridfinity 网格顶盖', 'Grid Roof'], ['table', '平面顶盖', 'Table Roof'], ['bowl', '托盘顶盖', 'Bowl Roof'], ['under_table', '桌下安装顶盖', 'Under Table Mount Roof'], ['heavy', '承重顶盖', 'Heawyweight Roof']];
   fillSelect('roof', roofTypes.filter(([key, label, match]) => key === 'none' || files.some(f => f.name.includes(match))).map(x => x.slice(0, 2)), $('roof').value || 'grid');
-  fillSelect('variant', family === 'S' || family === 'M' ? [['standard', '标准箱体']] : [['flat', '空箱 · Flat'], ['dividers', '网格分隔 · Dividers'], ['sealed', '封闭分隔 · Sealed']]);
+  fillSelect('variant', family === 'S' || family === 'M' ? [['standard', '标准']] : [['flat', '空箱'], ['dividers', '网格分隔'], ['sealed', '封闭分隔']]);
   show('split-roof-row', depth >= 6);
   if (depth < 6) $('split-roof').checked = false;
-  const allPlain = [['none', '留空 · 自由放置'], ['gridfinity', 'Gridfinity 网格底板'], ['dividers', '可拆分隔片']];
+  const allPlain = [['none', '留空'], ['gridfinity', 'Gridfinity 底板'], ['dividers', '分隔片']];
   fillSelect('interior', allPlain);
   const baseplates = [['plain', '标准底板', `${m.model} Baseplate.stl`], ['one', '带单提手底板', `${m.model} Baseplate_With 1 Handle.stl`], ['two', '带双提手底板', `${m.model} Baseplate_With 2 Handles.stl`]];
   fillSelect('baseplate', baseplates.filter(x => files.some(f => f.name.toLowerCase() === x[2].toLowerCase())).map(x => x.slice(0, 2)));
@@ -99,7 +119,7 @@ function refreshVisibility() {
   }
   $('latches').min = kind === 'drawer' && $('roof').value === 'under_table' ? '1' : '0';
   const layout = JSON.parse($('drawer-layout').value || '[1]');
-  $('drawer-description').textContent = layout.length > 1 ? `${layout.length} 个内抽共用一个外壳；自动加入锁定齿条。` : '一套外壳，一个内抽。';
+  $('drawer-description').textContent = layout.length > 1 ? `${layout.length} 个内抽共用一个外壳，自动加入锁定齿条。` : '';
   $('rails').disabled = kind !== 'drawer' || layout.length > 1;
   if (kind === 'drawer' && $('roof').value !== 'grid') { $('top-handle').checked = false; $('top-handle').disabled = true; }
   else $('top-handle').disabled = kind !== 'drawer';
@@ -107,11 +127,17 @@ function refreshVisibility() {
   if ($('wheels').disabled) $('wheels').checked = false;
   const h = +$('height').value;
   $('model-pill').textContent = `${currentModel()?.model || ''} · ${h}F`;
-  $('product-name').textContent = kind === 'drawer' ? '桌面小物，各得其所。' : '打开下一份井然有序。';
-  $('product-subtitle').textContent = `${family} 系列${kindLabels[kind]} · ${$('depth').value} 格深度 · ${h}F 高度`;
-  $('product-image').src = `/assets/${kind === 'drawer' ? 'drawer' : 'sustainer'}.jpg`;
-  $('product-image').alt = `VAULT ${kindLabels[kind]}官方示意，非当前配置的精确渲染`;
-  $('product-image').classList.toggle('case-image', kind === 'sustainer');
+  $('product-subtitle').textContent = kindLabels[kind];
+  const extras = [
+    $('labels').checked && '标签片',
+    kind === 'drawer' && $('top-handle').checked && '顶部提手',
+    kind === 'drawer' && $('rails').checked && '齿条',
+    kind === 'drawer' && +$('latches').value > 0 && `连接扣 ×${$('latches').value}`,
+    kind === 'drawer' && $('mount').value === 'wall' && '墙挂',
+    $('base').value !== 'none' && '底座',
+    $('wheels').checked && '双轮',
+  ].filter(Boolean);
+  $('extras-summary').textContent = extras.length ? extras.join('、') : '无';
 }
 function config() {
   return { kind, family, depth: +$('depth').value, height: +$('height').value, quantity: +$('quantity').value,
@@ -124,7 +150,7 @@ function config() {
 }
 function schedulePreview() {
   clearTimeout(previewTimer); ++previewSequence; currentPreview = null; $('add-plan').disabled = true;
-  $('preview-count').textContent = '匹配中'; show('preview-loading', true);
+  $('preview-count').textContent = '…'; show('preview-loading', true);
   previewTimer = setTimeout(updatePreview, 160);
 }
 async function updatePreview() {
@@ -135,7 +161,7 @@ async function updatePreview() {
     const result = await api('/api/preview', { configs: [config()] });
     if (seq !== previewSequence) return;
     currentPreview = result; $('add-plan').disabled = false;
-    $('preview-count').textContent = `${result.file_count} 个文件`;
+    $('preview-count').textContent = result.file_count;
     $('preview-summary').innerHTML = summaryHTML(result);
     renderPreviewParts();
     $('preview-notes').innerHTML = result.notes.map(n => `<div class="notice">${escapeHTML(n)}</div>`).join('');
@@ -144,16 +170,85 @@ async function updatePreview() {
     currentPreview = null; $('preview-count').textContent = '需核对'; $('preview-summary').replaceChildren(); $('preview-parts').replaceChildren(); $('preview-notes').replaceChildren();
     $('preview-error').textContent = e.message; show('preview-error', true);
   } finally { if (seq === previewSequence) show('preview-loading', false); }
+  updateAssembly();
+}
+// Shows the configured drawer or case in 3D when every measured part has placement data; otherwise a short note.
+// Every file in the parts list gets a number shared by its list row and its 3D badge.
+async function updateAssembly() {
+  const cfg = currentPreview?.configs[0];
+  const layout = assemblyData && assembly.available && cfg ? (cfg.kind === 'drawer' ? drawerLayout : caseLayout)(cfg, currentPreview.parts, assemblyData) : null;
+  const use3d = Boolean(layout), exploded = use3d && visualMode === 'explode';
+  show('visual-switch', use3d); show('assembly-canvas', use3d); show('assembly-status', use3d);
+  const failed = !cfg && !$('preview-error').classList.contains('hidden');
+  $('stage-empty').textContent = failed ? '这个型号暂不生成完整套件，可在模型库按文件补打。'
+    : !assemblyData ? '正在读取 3D 装配数据…' : '这个型号还没有 3D 装配数据，右侧零件清单仍然完整。';
+  show('stage-empty', !use3d && (Boolean(cfg) || failed));
+  $('assembly-canvas').parentElement.classList.toggle('exploded', exploded);
+  const numbers = use3d ? new Map(currentPreview.parts.map((p, i) => [p.id, i + 1])) : new Map();
+  if (JSON.stringify([...numbers]) !== JSON.stringify([...assemblyNumbers])) { assemblyNumbers = numbers; renderPreviewParts(); }
+  if (!use3d) { assemblyAbort?.abort(); assemblyShown = ''; assembly.setBadges(new Map(), new Map(), selectPart); hoverPart(null); return; }
+  const placedIds = new Set(layout.placed.map(p => p.part.id));
+  const tray = currentPreview.parts.filter(p => !placedIds.has(p.id));
+  const signature = JSON.stringify([layout.placed.map(p => [p.part.id, ...p.matrix.elements.map(n => Math.round(n * 100))]), tray.map(p => p.id)]);
+  assemblyAbort?.abort();
+  const abort = assemblyAbort = new AbortController();
+  const options = { signal: abort.signal, onProgress: (done, total) => {
+    if (!abort.signal.aborted) $('assembly-status').textContent = `正在读取 STL… ${Math.floor(done / total * 100)}% · ${bytes(done)} / ${bytes(total)}`;
+  } };
+  try {
+    if (signature !== assemblyShown) {
+      $('assembly-status').textContent = '正在读取 STL…';
+      hoverPart(null);
+      assembly.highlight(null);
+      if (!await assembly.show(layout.placed, tray, options) || abort.signal.aborted) return;
+      assemblyShown = signature;
+      assembly.setBadges(numbers, new Map(currentPreview.parts.map(p => [p.id, `${p.title} · ${p.name}`])), selectPart);
+    }
+    if (assembly.exploded !== exploded) await assembly.setExploded(exploded, options);
+    if (abort.signal.aborted) return;
+    $('assembly-status').textContent = exploded
+      ? `点击零件打开文件${tray.length ? ` · 右侧 ${tray.length} 个文件尚无装配位置数据` : ''}`
+      : `拖动旋转 · 滚轮缩放${layout.skipped.length ? ` · 暂未摆放：${layout.skipped.join('、')}` : ''}`;
+  } catch (e) { if (!abort.signal.aborted) $('assembly-status').textContent = e.message; }
+}
+function partLabel(id) {
+  const part = currentPreview?.parts.find(p => p.id === id);
+  return part ? `<strong>${String(assemblyNumbers.get(id) ?? '').padStart(2, '0')} · ${escapeHTML(part.title)} × ${part.copies}</strong><small>${escapeHTML(part.name)}</small>` : '';
+}
+function hoverPart(id, event) {
+  if (id !== hoveredPart) {
+    hoveredPart = id;
+    assembly.highlight(id ? new Set([id]) : null);
+    document.querySelectorAll('#preview-parts .part-row').forEach(row => row.classList.toggle('linked', row.dataset.part === id));
+    $('assembly-tip').innerHTML = id ? partLabel(id) : '';
+  }
+  show('assembly-tip', Boolean(id && event));
+  if (id && event) {
+    const box = $('assembly-canvas').parentElement.getBoundingClientRect();
+    $('assembly-tip').style.left = `${Math.min(event.clientX - box.left + 12, box.width - 200)}px`;
+    $('assembly-tip').style.top = `${event.clientY - box.top + 14}px`;
+  }
+}
+// A click on a 3D part opens its STL and marks its row in the parts list.
+function selectPart(id) {
+  openMesh(id);
+  const index = currentPreview?.parts.findIndex(p => p.id === id) ?? -1;
+  if (index < 0) return;
+  if (index >= 6 && !expanded) { expanded = true; renderPreviewParts(); }
+  const row = document.querySelector(`#preview-parts .part-row[data-part="${id}"]`);
+  if (!row) return;
+  row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  row.classList.remove('flash'); void row.offsetWidth; row.classList.add('flash');
 }
 function summaryHTML(result) {
-  return `<div class="preview-summary"><div><strong>${result.file_count}</strong>个文件</div><div><strong>${result.copies}</strong>次打印</div><span class="muted">源文件 ${bytes(result.bytes)}</span></div>`;
+  return `<span class="preview-summary">${result.copies} 次打印 · ${bytes(result.bytes)}</span>`;
 }
-function partsHTML(parts) {
-  return parts.map(p => `<div class="part-row"><span class="part-file-icon">STL</span><div class="part-info"><strong>${escapeHTML(p.title)}${p.optional ? '<span class="optional-tag">选配</span>' : ''}${p.supports ? '<span class="tag-support">开支撑</span>' : ''}</strong><small title="${escapeHTML(p.relative)}">${escapeHTML(p.name)}</small></div><span class="part-copy" title="${escapeHTML(p.unit)}">× ${p.copies}</span><button class="part-preview" data-mesh="${p.id}" aria-label="预览 ${escapeHTML(p.name)}">↗</button><button class="part-preview" data-evidence="${p.id}" aria-label="查看 ${escapeHTML(p.name)} 的依据">ⓘ</button></div>`).join('');
+function partsHTML(parts, numbers = new Map()) {
+  return parts.map(p => `<div class="part-row" data-part="${p.id}">${numbers.has(p.id) ? `<span class="part-file-icon numbered" title="3D 视图中的编号">${String(numbers.get(p.id)).padStart(2, '0')}</span>` : '<span class="part-file-icon">STL</span>'}<div class="part-info"><strong>${escapeHTML(p.title)}${p.optional ? '<span class="optional-tag">选配</span>' : ''}${p.supports ? '<span class="tag-support">开支撑</span>' : ''}</strong><small title="${escapeHTML(p.relative)}">${escapeHTML(p.name)}</small></div><span class="part-copy" title="${escapeHTML(p.unit)}">× ${p.copies}</span><button class="part-preview" data-mesh="${p.id}" aria-label="预览 ${escapeHTML(p.name)}">↗</button><button class="part-preview" data-evidence="${p.id}" aria-label="查看 ${escapeHTML(p.name)} 的依据">ⓘ</button></div>`).join('');
 }
 function renderPreviewParts() {
   if (!currentPreview) return;
-  $('preview-parts').innerHTML = partsHTML(currentPreview.parts.slice(0, expanded ? undefined : 6)) + (currentPreview.parts.length > 6 ? `<button class="expand-parts" id="expand-parts">${expanded ? '收起清单 ↑' : `展开全部 ${currentPreview.file_count} 个文件 ↓`}</button>` : '');
+  $('preview-parts').innerHTML = partsHTML(currentPreview.parts.slice(0, expanded ? undefined : 6), assemblyNumbers) + (currentPreview.parts.length > 6 ? `<button class="expand-parts" id="expand-parts">${expanded ? '收起清单 ↑' : `展开全部 ${currentPreview.file_count} 个文件 ↓`}</button>` : '');
   $('expand-parts')?.addEventListener('click', () => { expanded = !expanded; renderPreviewParts(); });
 }
 function queueTitle(c) { return `${c.family.replace('²', '')}${c.depth}${c.family.includes('²') ? '²' : ''} · ${c.height}F ${kindLabels[c.kind]} × ${c.quantity}`; }
@@ -227,16 +322,19 @@ async function pollJob(id) {
 function info(title, html) { $('info-title').textContent = title; $('info-content').innerHTML = html; $('info-dialog').showModal(); }
 async function openMesh(id) {
   const file = catalog?.files.find(f => f.id === id); if (!file) return;
-  const seq = ++meshSequence;
-  $('mesh-title').textContent = file.name; $('mesh-status').textContent = '正在读取完整模型尺寸并生成预览…'; $('mesh-details').replaceChildren(); viewer.clear();
+  meshFile = id;
+  meshAbort?.abort();
+  const abort = meshAbort = new AbortController();
+  $('mesh-title').textContent = file.name; $('mesh-status').textContent = '正在读取完整模型…'; $('mesh-details').replaceChildren(); viewer.clear();
   if (!$('mesh-dialog').open) $('mesh-dialog').showModal();
   try {
-    const mesh = await api('/api/mesh/' + id);
-    if (seq !== meshSequence) return;
-    viewer.setData(mesh);
-    $('mesh-status').textContent = `${mesh.faces.toLocaleString()} 个三角面 · 预览抽样 ${mesh.triangles.length.toLocaleString()} 面`;
-    $('mesh-details').innerHTML = `<strong>STL 坐标轴尺寸：${mesh.dimensions.join(' × ')} mm</strong><br>${escapeHTML(file.title)} · ${bytes(file.size)} · ${escapeHTML(file.material)}${file.supports ? ' · 文件名明确要求开启支撑' : ''}<br><span class="muted">${escapeHTML(mesh.note)}<br>${escapeHTML(file.relative)}</span>`;
-  } catch (e) { if (seq === meshSequence) $('mesh-status').textContent = e.message; }
+    const mesh = await viewer.load('/api/stl/' + id, { signal: abort.signal, onProgress: (done, total) => {
+      $('mesh-status').textContent = `正在读取完整模型… ${Math.floor(done / total * 100)}% · ${bytes(done)} / ${bytes(total)}`;
+    } });
+    if (abort.signal.aborted) return;
+    $('mesh-status').textContent = `${mesh.faces.toLocaleString()} 个三角面 · 完整渲染`;
+    $('mesh-details').innerHTML = `<strong>STL 坐标轴尺寸：${mesh.dimensions.join(' × ')} mm</strong><br>${escapeHTML(file.title)} · ${bytes(file.size)} · ${escapeHTML(file.material)}${file.supports ? ' · 文件名明确要求开启支撑' : ''}<br><span class="muted">STL 坐标轴包围盒尺寸（mm），不是装配尺寸或打印空间。<br>${escapeHTML(file.relative)}</span>`;
+  } catch (e) { if (!abort.signal.aborted) $('mesh-status').textContent = e.message; }
 }
 function evidence(id, fromQueue) {
   const part = (fromQueue ? queuePreview : currentPreview)?.parts.find(p => p.id === id);
@@ -252,9 +350,8 @@ async function connect(root) {
   finally { $('save-source').disabled = false; $('save-source').textContent = '扫描并连接 ↗'; }
 }
 function updateCatalogUI() {
-  $('nav-file-count').textContent = catalog?.count || '—'; $('total-files').textContent = catalog?.count || '—';
-  $('sidebar-source').textContent = catalog ? `${catalog.count} 个 STL · 已连接` : '未连接模型库';
-  $('source-summary').textContent = catalog ? '源文件就绪 · 无需上传' : '请选择模型库路径';
+  $('nav-file-count').textContent = catalog?.count || '—';
+  $('sidebar-source').textContent = catalog ? `${catalog.count} 个模型` : '未连接模型库';
   $('source-path').value = catalog?.root || 'D:\\261020_VAULT_USSA\\261020_VAULT_USSA';
   $('source-button').title = catalog?.root || '连接模型库';
 }
@@ -325,13 +422,41 @@ $('rescan-button').addEventListener('click', async () => {
   try { await connect(catalog.root); } finally { $('rescan-button').disabled = false; }
 });
 $('open-output').addEventListener('click', () => api('/api/open-output', {}).catch(e => toast(e.message, true)));
-$('quick-guide').addEventListener('click', () => info('从选择到打印，只需要四步。', '<p>① 选择抽屉式或翻盖式，按官方型号选择宽度、深度和高度。</p><p>② 配置内抽、顶盖与内部收纳，右侧会显示所需文件和整份 STL 打印次数。</p><p>③ 加入打印计划。多个箱子、配件补打可以合并导出，同一文件只存一份。</p><p>④ 在打印计划中点击「整理并打包 ZIP」，到导出记录下载打印包，导入切片器。</p><div class="notice">不确定型号时，先阅读「中文装配指引」。只想补打某个零件，可以直接到模型库搜索。</div>'));
 $('parts-guide').addEventListener('click', () => info(`${kindLabels[kind]}零件命名 · 官方示意`, `<img src="/assets/${kind === 'drawer' ? 'drawer' : 'sustainer'}-parts.jpg" alt="官方零件命名图"><p class="field-description">来源：01_Instructions Manual.pdf 第${kind === 'drawer' ? 11 : 12}页。图中型号用于说明部件名称，不代表当前配置。</p>`));
 $('show-hardware').addEventListener('click', () => {
   if (!currentPreview) return toast('请先选择一个通过核对的配置。', true);
   info('本次五金参考清单', '<table class="data-table"><thead><tr><th>规格</th><th>数量</th><th>用途与依据</th></tr></thead><tbody>' + currentPreview.hardware.map(h => `<tr><td>${escapeHTML(h.name)}</td><td>${h.quantity}</td><td>${escapeHTML(h.reason)}<small>${escapeHTML(h.source)}<br>${escapeHTML(h.status)}</small></td></tr>`).join('') + '</tbody></table><div class="notice warning">官方总表和细分图存在数量差异。采购和装配前，请按实际型号孔位核对参考项。</div>');
 });
-$('mesh-dialog').addEventListener('close', () => { meshSequence++; viewer.clear(); });
+$('mesh-dialog').addEventListener('close', () => { meshAbort?.abort(); viewer.clear(); });
+for (const [id, reveal] of [['mesh-reveal', true], ['mesh-open', false]]) $(id).addEventListener('click', () => {
+  if (meshFile) api('/api/open-file', { id: meshFile, reveal }).catch(e => toast(e.message, true));
+});
+$('assembly-canvas').addEventListener('pointerdown', e => { canvasPress = [e.clientX, e.clientY]; hoverPart(null); });
+$('assembly-canvas').addEventListener('pointerup', e => {
+  const still = canvasPress && Math.hypot(e.clientX - canvasPress[0], e.clientY - canvasPress[1]) < 5;
+  canvasPress = null;
+  if (still) { const id = assembly.pick(e.clientX, e.clientY); if (id) selectPart(id); }
+});
+$('assembly-canvas').addEventListener('pointermove', e => {
+  if (canvasPress) return;
+  cancelAnimationFrame(hoverFrame);
+  hoverFrame = requestAnimationFrame(() => hoverPart(assembly.pick(e.clientX, e.clientY), e));
+});
+$('assembly-canvas').addEventListener('pointerleave', () => { cancelAnimationFrame(hoverFrame); hoverPart(null); });
+$('preview-parts').addEventListener('pointerover', e => {
+  const row = e.target.closest('.part-row');
+  if (row && assemblyNumbers.has(row.dataset.part)) assembly.highlight(new Set([row.dataset.part]));
+});
+$('preview-parts').addEventListener('pointerout', e => {
+  const row = e.target.closest('.part-row');
+  if (row && !row.contains(e.relatedTarget)) assembly.highlight(hoveredPart ? new Set([hoveredPart]) : null);
+});
+document.querySelectorAll('[data-visual]').forEach(button => button.addEventListener('click', () => {
+  visualMode = button.dataset.visual;
+  document.querySelectorAll('[data-visual]').forEach(b => { b.classList.toggle('selected', b === button); b.setAttribute('aria-pressed', String(b === button)); });
+  updateAssembly();
+}));
+fetch('/assembly-data.json').then(r => r.ok ? r.json() : null).then(data => { assemblyData = data; updateAssembly(); }).catch(() => {});
 
 async function init() {
   saveQueue();

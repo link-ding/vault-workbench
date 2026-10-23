@@ -25,7 +25,7 @@ class AssemblyContracts(unittest.TestCase):
     def test_every_exposed_body_variant_resolves(self):
         checked = 0
         for model in self.catalog.models.values():
-            if not model["verified"] or (model["kind"] == "drawer" and model["family"] == "XL"):
+            if not model["verified"]:
                 continue
             variants = ["standard"] if model["family"] in ("S", "M") or model["kind"] == "drawer" else ["flat", "dividers", "sealed"]
             for height in model["heights"]:
@@ -36,7 +36,63 @@ class AssemblyContracts(unittest.TestCase):
                     for part in result["parts"]:
                         self.assertTrue(self.catalog.resolve(part["id"]).is_file())
                     checked += 1
-        self.assertEqual(checked, 135)
+        self.assertEqual(checked, 140)
+
+    def test_every_drawer_body_has_3d_placement_data(self):
+        data = json.loads((Path(__file__).resolve().parent.parent / "web" / "assembly-data.json").read_text(encoding="utf-8"))
+        checked = 0
+        for model in self.catalog.models.values():
+            if model["kind"] != "drawer" or model["family"] not in ("S", "M", "L", "XL"):
+                continue
+            for height in model["heights"]:
+                for roof in ("grid", "table", "bowl", "under_table") + (("heavy",) if model["family"] in ("L", "XL") else ()):
+                    cfg = {"kind": "drawer", "family": model["family"], "depth": model["depth"], "height": height, "roof": roof}
+                    for part in Recipe(self.catalog).build(cfg)["parts"]:
+                        if any(folder in part["relative"] for folder in ("/Modules/", "/Facades/", "/Roofs/", "/Boxes/")) or part["name"] == "XL Facade 1F.stl":
+                            entry = data["files"].get(part["relative"])
+                            self.assertIsNotNone(entry, part["relative"])
+                            self.assertEqual(entry["size"], part["size"], part["relative"])
+                            if entry["role"] == "module":
+                                self.assertEqual(len(entry["slots"]), height, part["relative"])
+                    checked += 1
+        self.assertEqual(checked, 220)
+
+    def test_xl_drawer_kits(self):
+        short = Recipe(self.catalog).build({"kind": "drawer", "family": "XL", "depth": 3, "height": 1, "interior": "gridfinity"})
+        names = {p["name"]: p["copies"] for p in short["parts"]}
+        for name in ("XL3 Module 1F.stl", "XL3 Box 1F.stl", "XL3 Back Panel.stl", "XL Facade 1F.stl",
+                     "XL3 Runner Slides.stl", "XL3 Runner Guides.stl", "XL3 Baseplate.stl", "Key (Turn On Supports).stl"):
+            self.assertEqual(names.get(name), 1, name)
+        self.assertEqual(names["Facade Cap.stl"], 2)
+        long = Recipe(self.catalog).build({"kind": "drawer", "family": "XL", "depth": 7, "height": 1, "interior": "gridfinity"})
+        names = {p["name"] for p in long["parts"]}
+        self.assertTrue({"XL7 Box 1F Part 1.stl", "XL7 Box 1F Part 2.stl", "XL7 Baseplate Part 1.stl", "XL7 Baseplate Part 2.stl"} <= names)
+        self.assertFalse(any("Back Panel" in name for name in names))
+        with self.assertRaises(ValidationError):
+            Recipe(self.catalog).build({"kind": "drawer", "family": "XL", "depth": 3, "height": 1, "interior": "gridfinity", "baseplate": "two"})
+
+    def test_every_case_body_has_3d_placement_data(self):
+        data = json.loads((Path(__file__).resolve().parent.parent / "web" / "assembly-data.json").read_text(encoding="utf-8"))
+        checked = 0
+        for model in self.catalog.models.values():
+            if model["kind"] != "sustainer" or not model["verified"]:
+                continue
+            variants = ["standard"] if model["family"] in ("S", "M") else ["flat", "dividers", "sealed"]
+            for height in model["heights"]:
+                for variant in variants:
+                    for split in ([False, True] if model["depth"] >= 6 else [False]):
+                        cfg = {"kind": "sustainer", "family": model["family"], "depth": model["depth"], "height": height,
+                               "variant": variant, "split_roof": split}
+                        parts = Recipe(self.catalog).build(cfg)["parts"]
+                        for part in parts:
+                            body = "/Modules/" in part["relative"] or part["name"].endswith(" Facade.stl")
+                            lid = "/Roof" in part["relative"] and not part["name"].startswith("Connector")
+                            if body or lid:
+                                entry = data["files"].get(part["relative"])
+                                self.assertIsNotNone(entry, part["relative"])
+                                self.assertEqual(entry["size"], part["size"], part["relative"])
+                        checked += 1
+        self.assertEqual(checked, 126)
 
     def test_one_stl_pair_is_not_multiplied_by_object_count(self):
         result = plan(self.catalog, {"configs": [{"kind": "drawer", "height": 1, "quantity": 2}]})
@@ -56,7 +112,7 @@ class AssemblyContracts(unittest.TestCase):
         self.assertFalse(any("Roof" in name for name in by_name))
 
     def test_incompatible_height_and_unverified_families_fail_closed(self):
-        for cfg in [{"height": 2, "drawers": [1]}, {"height": 3}, {"family": "L²"}, {"family": "XL"}]:
+        for cfg in [{"height": 2, "drawers": [1]}, {"height": 3}, {"family": "L²"}, {"family": "XL", "height": 2}]:
             with self.subTest(cfg=cfg), self.assertRaises(ValidationError):
                 Recipe(self.catalog).build(cfg)
 

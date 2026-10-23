@@ -7,12 +7,13 @@ import json
 import mimetypes
 import os
 import secrets
+import subprocess
+import sys
 import threading
 import webbrowser
 
 from vault.catalog import Catalog, DEFAULT_ROOT, DOCS, ValidationError
 from vault.exporter import ExportManager
-from vault.geometry import preview
 from vault.recipes import plan
 
 
@@ -37,6 +38,20 @@ def scan(root):
         CATALOG = fresh
         CATALOG_ERROR = ""
     return fresh
+
+
+def show_in_os(path, select=False):
+    """Open a file or folder with the system's default program, or reveal it in Finder / Explorer."""
+    path = Path(path)
+    if os.name == "nt":
+        if select:
+            subprocess.Popen(["explorer", "/select,", str(path)])
+        else:
+            os.startfile(str(path))
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", "-R", str(path)] if select else ["open", str(path)])
+    else:
+        subprocess.Popen(["xdg-open", str(path.parent if select else path)])
 
 
 def current_catalog():
@@ -107,10 +122,8 @@ class Handler(BaseHTTPRequestHandler):
                 if doc_id not in ("1", "2", "3", "4", "5"):
                     raise ValidationError("说明书编号无效。")
                 return self.file(current_catalog().root / DOCS[int(doc_id) - 1][0], "application/pdf")
-            if route.startswith("/api/mesh/"):
-                source = current_catalog().resolve(route.rsplit("/", 1)[-1])
-                stat = source.stat()
-                return self.json(preview(str(source), stat.st_size, stat.st_mtime_ns))
+            if route.startswith("/api/stl/"):
+                return self.file(current_catalog().resolve(route.rsplit("/", 1)[-1]), "model/stl")
             if route == "/":
                 return self.file(BASE / "web" / "index.html", "text/html; charset=utf-8")
             if route.startswith("/assets/"):
@@ -118,7 +131,8 @@ class Handler(BaseHTTPRequestHandler):
                 if not path.is_relative_to(BASE / "web" / "assets"):
                     raise ValidationError("无效的资源路径。")
                 return self.file(path)
-            if route in ("/app.js", "/styles.css", "/viewer.js"):
+            if route in ("/app.js", "/styles.css", "/viewer.js", "/assembly.js", "/assembly-data.json",
+                         "/vendor/three.module.min.js", "/vendor/STLLoader.js", "/vendor/OrbitControls.js"):
                 return self.file(BASE / "web" / route[1:])
             return self.json({"error": "页面不存在。"}, 404)
         except ValidationError as exc:
@@ -155,9 +169,14 @@ class Handler(BaseHTTPRequestHandler):
                 folder = EXPORTS.output
                 if payload.get("id"):
                     folder = EXPORTS.download_path(payload["id"]).parent
-                if os.name == "nt":
-                    os.startfile(str(folder))
+                folder.mkdir(parents=True, exist_ok=True)
+                show_in_os(folder)
                 return self.json({"path": str(folder)})
+            if route == "/api/open-file":
+                # only files in the scanned model library can be opened or revealed
+                source = current_catalog().resolve(payload.get("id"))
+                show_in_os(source, select=bool(payload.get("reveal")))
+                return self.json({"path": str(source)})
             return self.json({"error": "接口不存在。"}, 404)
         except (ValidationError, ValueError, TypeError) as exc:
             self.json({"error": str(exc)}, 400)

@@ -39,8 +39,6 @@ class Recipe:
                               "source": source, "status": status})
 
     def drawer(self, cfg, family, model, height):
-        if family == "XL":
-            raise ValidationError("XL 抽屉的双锁与后板配方仍待核对。可在模型库中选择文件补打；暂不生成完整套件。")
         self.named(f"{model} Module {height}F.stl", kind="drawer", model=model,
                    title="抽屉外壳", reason="所选外壳尺寸", source=f"{MANUAL} 第11、14页")
         drawer_heights = cfg.get("drawers", [height])
@@ -53,10 +51,25 @@ class Recipe:
             raise ValidationError("未知的旋钮类型。")
         rails = cfg.get("rails", False) or len(drawer_heights) > 1
         for inner_height in drawer_heights:
-            self.named(f"{model} Box {inner_height}F.stl", kind="drawer", model=model,
-                       title=f"{inner_height}F 内抽盒", reason="每个内抽 1 份", source=f"{DRAWER} 第3–8页")
-            self.named(f"{family}{inner_height}F (Turn On Supports).stl", kind="drawer", family=family,
-                       title=f"{inner_height}F 前面板", reason="与内抽高度匹配；开启支撑", source=f"{DRAWER} 第1、6页")
+            if family == "XL" and int(model[-1]) >= 6:
+                for part in (1, 2):
+                    self.named(f"{model} Box 1F Part {part}.stl", kind="drawer", model=model,
+                               title=f"1F 内抽盒（第 {part} 段）", reason="XL 长型号内抽盒分前后两段打印",
+                               source="模型库 XL6/XL7 分段文件")
+            elif family == "XL":
+                self.named(f"{model} Box 1F.stl", kind="drawer", model=model, title="1F 内抽盒",
+                           reason="XL 内抽盒后部开口，需与后板配套", source="模型库 XL 文件；STL 结构核对")
+                self.named(f"{model} Back Panel.stl", kind="drawer", model=model, title="内抽盒后板",
+                           reason="插入 XL 内抽盒后部，封住开口", source="模型库 XL 文件；STL 结构核对")
+            else:
+                self.named(f"{model} Box {inner_height}F.stl", kind="drawer", model=model,
+                           title=f"{inner_height}F 内抽盒", reason="每个内抽 1 份", source=f"{DRAWER} 第3–8页")
+            if family == "XL":
+                self.named("XL Facade 1F.stl", kind="drawer", family=family, title="1F 前面板",
+                           reason="XL 专用面板：单锁孔、4 个螺丝孔", source="XL Facade 1F.stl 孔位核对")
+            else:
+                self.named(f"{family}{inner_height}F (Turn On Supports).stl", kind="drawer", family=family,
+                           title=f"{inner_height}F 前面板", reason="与内抽高度匹配；开启支撑", source=f"{DRAWER} 第1、6页")
             if key == "hidden":
                 self.named("Hidden Key (Turn On Supports).stl", kind="drawer", title="隐藏式旋钮主体",
                            reason="每个内抽一套", source=f"{MANUAL} 第15页；替代普通旋钮")
@@ -69,9 +82,10 @@ class Recipe:
                        source=f"{DRAWER} 第2页；STL 连通体核对为2件", unit="对 / 文件")
             self.named("Facade Cap.stl", 2, kind="drawer", reason="面板左右各 1 个孔盖", source=f"{DRAWER} 第6页")
             depth = model[-1]
-            self.named(f"x{depth} Runner Slides.stl", kind="drawer", reason="文件内包含左右内滑轨",
+            runner = f"XL{depth}" if family == "XL" else f"x{depth}"
+            self.named(f"{runner} Runner Slides.stl", kind="drawer", reason="文件内包含左右内滑轨",
                        source=f"{DRAWER} 第4页；STL 连通体核对为2件", unit="对 / 文件")
-            self.named(f"x{depth} Runner Guides.stl", kind="drawer", reason="文件内包含左右外导轨",
+            self.named(f"{runner} Runner Guides.stl", kind="drawer", reason="文件内包含左右外导轨",
                        source=f"{DRAWER} 第7页；STL 连通体核对为2件", unit="对 / 文件")
             self.named("Runner Stopper.stl", 2, kind="drawer", reason="左右各一个限位块", source=f"{DRAWER} 第8页")
             if rails:
@@ -118,6 +132,13 @@ class Recipe:
                      "two": f"{model} Baseplate_With 2 Handles.stl"}
             if style not in names:
                 raise ValidationError("未知底板类型。")
+            if family == "XL" and style != "plain":
+                raise ValidationError("XL 抽屉只有标准 Gridfinity 底板。")
+            if family == "XL" and int(model[-1]) >= 6:
+                for part in (1, 2):
+                    self.named(f"{model} Baseplate Part {part}.stl", kind="drawer", model=model, optional=True,
+                               reason="XL 长型号底板分前后两片", source="模型库 XL6/XL7 分段文件")
+                return
             self.named(names[style], kind="drawer", model=model, optional=True,
                        reason="内部 Gridfinity 底板", source=f"{MANUAL} 第9、11页")
         elif interior == "dividers":
@@ -127,7 +148,7 @@ class Recipe:
                 raise ValidationError("未知分隔条高度。")
             if divider_height == "82.5" and height < 2:
                 raise ValidationError("82.5 mm 分隔条不能用于 1F 内抽。")
-            width = {"S": "10-S, x3", "M": "18-M, x5", "L": "26-L, x7"}[family]
+            width = {"S": "10-S, x3", "M": "18-M, x5", "L": "26-L, x7", "XL": "32-XL"}[family]
             depth = {"3": "10-S, x3", "4": "14, x4", "5": "18-M, x5", "6": "22, x6", "7": "26-L, x7"}[model[-1]]
             for name, count_key, title in [(width, "width_dividers", "横向分隔条"), (depth, "depth_dividers", "纵向分隔条")]:
                 count = integer(cfg.get(count_key, 1), title + "数量", minimum=0, maximum=20)
